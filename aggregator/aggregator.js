@@ -31,6 +31,7 @@ module.exports = function (RED) {
         node.intervalTimeout = node.factor * config.intervalCount;
         node.startupTimeout = node.intervalTimeout - (node.correctedStartupTime % node.intervalTimeout);
         node.values = {};
+        node.lastMsg = {};
 
         node.aggregate = function (list) {
             var output;
@@ -72,10 +73,17 @@ module.exports = function (RED) {
             if (config.submitPerTopic) {
                 for (var topic in node.values) {
                     if (node.values.hasOwnProperty(topic) && node.values[topic].length > 0) {
-                        node.send({
-                            topic: topic,
-                            payload: node.aggregate(node.values[topic])
-                        });
+                        var payload = node.aggregate(node.values[topic]);
+                        var topicLastMsg = node.lastMsg[topic];
+                        if (topicLastMsg != null) {
+                            topicLastMsg.payload = payload;
+                            node.send(topicLastMsg)
+                        } else {
+                            node.send({
+                                topic: topic,
+                                payload: payload,
+                            });
+                        }
                     }
                 }
             } else {
@@ -96,6 +104,7 @@ module.exports = function (RED) {
             }
 
             node.values = {};
+            node.lastMsg = {};
         };
 
         node.primaryTimeout = setTimeout(function () {
@@ -123,6 +132,7 @@ module.exports = function (RED) {
                     }
 
                     node.values[stringTopic].push(parseFloat(msg.payload, 10));
+                    node.lastMsg[stringTopic] = msg;
                 }
             } catch (err) {
                 node.error(err.message);
